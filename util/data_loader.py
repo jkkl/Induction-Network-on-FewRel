@@ -41,6 +41,7 @@ class JSONFileDataLoader(FileDataLoader):
                 not os.path.exists(word_vec_mat_file_name) or \
                 not os.path.exists(word2id_file_name):
             return False
+        # 加载预训练模型
         print("Pre-processed files exist. Loading them...")
         self.data_word = np.load(word_npy_file_name)
         self.data_pos1 = np.load(pos1_npy_file_name)
@@ -92,6 +93,7 @@ class JSONFileDataLoader(FileDataLoader):
         self.max_length = max_length
         self.cuda = cuda
 
+        # 看是否需要重新计算或者预加载
         if reprocess or not self._load_preprocessed_file():  # Try to load pre-processed files:
             # Check files
             if file_name is None or not os.path.isfile(file_name):
@@ -119,12 +121,13 @@ class JSONFileDataLoader(FileDataLoader):
             # Pre-process word vec
             self.word2id = {}
             self.word_vec_tot = len(self.ori_word_vec) # 计算共有多少个token,每个token一个向量
-            UNK = self.word_vec_tot
-            BLANK = self.word_vec_tot + 1
-            self.word_vec_dim = len(self.ori_word_vec[0]['vec']) # word向量
+            UNK_ID = self.word_vec_tot
+            BLANK_ID = self.word_vec_tot + 1
+            extra_token = [UNK_ID, BLANK_ID]
+            self.word_vec_dim = len(self.ori_word_vec[0]['vec'][0:]) # word向量
             print("Got {} words of {} dims".format(self.word_vec_tot, self.word_vec_dim))
             print("Building word vector matrix and mapping...")
-            self.word_vec_mat = np.zeros((self.word_vec_tot, self.word_vec_dim), dtype=np.float32)
+            self.word_vec_mat = np.zeros((self.word_vec_tot + len(extra_token), self.word_vec_dim), dtype=np.float32)
             for cur_id, word in enumerate(self.ori_word_vec):
                 w = word['word']
                 if not case_sensitive:
@@ -133,8 +136,8 @@ class JSONFileDataLoader(FileDataLoader):
                 self.word_vec_mat[cur_id, :] = word['vec']
                 # embedding归一化
                 self.word_vec_mat[cur_id] = self.word_vec_mat[cur_id] / np.sqrt(np.sum(self.word_vec_mat[cur_id] ** 2))
-            self.word2id['UNK'] = UNK
-            self.word2id['BLANK'] = BLANK
+            self.word2id['UNK'] = UNK_ID # 加了两个token, unk, blank
+            self.word2id['BLANK'] = BLANK_ID
             print("Finish building")
 
             # Pre-process data
@@ -163,9 +166,9 @@ class JSONFileDataLoader(FileDataLoader):
                             if word in self.word2id:
                                 cur_ref_data_word[j] = self.word2id[word]
                             else:
-                                cur_ref_data_word[j] = UNK
+                                cur_ref_data_word[j] = UNK_ID
                     for j in range(j + 1, max_length):
-                        cur_ref_data_word[j] = BLANK
+                        cur_ref_data_word[j] = BLANK_ID
                     self.data_length[i] = len(words)
                     if len(words) > max_length:
                         self.data_length[i] = max_length

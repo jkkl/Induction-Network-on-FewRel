@@ -22,11 +22,16 @@ print("Model: {}".format(model_name))
 
 #max_length = 40
 max_length = 40
-train_data_loader = JSONFileDataLoader('./data/train.json', './data/glove.6B.50d.json', max_length=max_length)
-val_data_loader = JSONFileDataLoader('./data/val.json', './data/glove.6B.50d.json', max_length=max_length)
+embedding_file = "./data/glove.6B.5d.json"
+train_data_loader = JSONFileDataLoader('./data/train.json', embedding_file, max_length=max_length)
+val_data_loader = JSONFileDataLoader('./data/val.json', embedding_file, max_length=max_length)
+
 
 if model_name == 'induction':
-    model = InductionGraph(N, K, 5,
+    model = InductionGraph(N, K, Q=5,
                            pred_embed=train_data_loader.word_vec_mat,
-                           sequence_length=max_length)
-    model.train((train_data_loader, val_data_loader), "checkpoints/inductionNetwork_test")
+                           sequence_length=max_length,
+                           hidden_size=20
+                           )
+    model.train((train_data_loader, val_data_loader),
+                model_dir_path="checkpoints/inductionNetwork_test")

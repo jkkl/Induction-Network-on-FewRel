@@ -18,7 +18,7 @@ class InductionGraph(Base):
         Q: Num of instances for each class in the query set
         """
         Base.__init__(self, kwds)
-        self.num_classes = N
+        self.num_classes = N # 每次batch中有多少个class
         self.support_num_per_class = K
         self.query_num_per_class = Q
 
@@ -59,7 +59,16 @@ class InductionGraph(Base):
             labels_one_hot = tf.one_hot(self.query_label, self.num_classes, dtype=tf.float32)
             losses = tf.losses.mean_squared_error(labels=labels_one_hot, predictions=self.probs)
 
-            # l2_losses = tf.add_n(
-            #     [tf.nn.l2_loss(v) for v in tf.trainable_variables() if 'bias' not in v.name]) * self.l2_lambda
-            # self.loss = losses + l2_losses
+            #l2_losses = tf.add_n( [tf.nn.l2_loss(v) for v in tf.trainable_variables() if 'bias' not in v.name]) * self.l2_lambda
+            l2_losses = []
+            for index, v in enumerate(tf.trainable_variables()):
+                #print("index:{} var:{}".format(index, v.name))
+                if 'bias' not in v.name \
+                        and 'word_embedding' not in v.name \
+                        and 'pos1_embedding' not in v.name \
+                        and 'pos2_embedding' not in v.name:
+                    l2_losses.append(v)
+                    print("index:{} add var:{} with l2 loss".format(index, v.name))
+
+            self.loss = losses + tf.add_n([tf.nn.l2_loss(v) for v in l2_losses]) * self.l2_lambda
             self.loss = losses

@@ -19,7 +19,7 @@ class Base:
         self.initializer = kwds.get("initializer", tf.random_normal_initializer(stddev=0.1))
         self.decay_steps = kwds.get("decay_steps", 100)
         self.decay_rate = kwds.get("decay_rate", 0.9)
-        self.l2_lambda = kwds.get("l2_lambda", 0.0001)
+        self.l2_lambda = kwds.get("l2_lambda", 0.00001)
         self.embed = kwds.get("pred_embed", None)
         # self.epoch_num = kwds.get("epoch_num", )
         self.pos_embedding_dim = 5
@@ -38,17 +38,23 @@ class Base:
         # step
         self.global_step = tf.Variable(name="global_step", initial_value=0, trainable=False)
 
-        # input
+        ## input
+        # input_words:[batch, seq_length]
         self.input_words = tf.placeholder(name="input_words", shape=[None, self.sequence_length], dtype=tf.int32)
+        # input_pos1:[batch, seq_length]
         self.input_pos1 = tf.placeholder(name="input_pos1", shape=[None, self.sequence_length], dtype=tf.int32)
+        # input_pos2:[batch, seq_length]
         self.input_pos2 = tf.placeholder(name="input_pos2", shape=[None, self.sequence_length], dtype=tf.int32)
+        # query_label:[batch]
         self.query_label = tf.placeholder(name="query_label", shape=[None], dtype=tf.int32)  # y [None,num_classes]
         self.keep_prob = tf.placeholder(name="keep_probx", dtype=tf.float32)
 
         # embedding matrix
         with tf.name_scope("embedding"):
             if self.embed is not None:
+                print("use word embedding, size:", self.embed.shape)
                 self.word_embedding = tf.Variable(self.embed, trainable=False)
+                self.embed_size = self.embed.shape[1]
             else:
                 self.word_embedding = tf.get_variable(name="word_embedding", shape=[self.vocab_size, self.embed_size],
                                                       initializer=self.initializer, trainable=True)
