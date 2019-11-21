@@ -118,10 +118,10 @@ class JSONFileDataLoader(FileDataLoader):
 
             # Pre-process word vec
             self.word2id = {}
-            self.word_vec_tot = len(self.ori_word_vec)
+            self.word_vec_tot = len(self.ori_word_vec) # 计算共有多少个token,每个token一个向量
             UNK = self.word_vec_tot
             BLANK = self.word_vec_tot + 1
-            self.word_vec_dim = len(self.ori_word_vec[0]['vec'])
+            self.word_vec_dim = len(self.ori_word_vec[0]['vec']) # word向量
             print("Got {} words of {} dims".format(self.word_vec_tot, self.word_vec_dim))
             print("Building word vector matrix and mapping...")
             self.word_vec_mat = np.zeros((self.word_vec_tot, self.word_vec_dim), dtype=np.float32)
@@ -131,6 +131,7 @@ class JSONFileDataLoader(FileDataLoader):
                     w = w.lower()
                 self.word2id[w] = cur_id
                 self.word_vec_mat[cur_id, :] = word['vec']
+                # embedding归一化
                 self.word_vec_mat[cur_id] = self.word_vec_mat[cur_id] / np.sqrt(np.sum(self.word_vec_mat[cur_id] ** 2))
             self.word2id['UNK'] = UNK
             self.word2id['BLANK'] = BLANK
