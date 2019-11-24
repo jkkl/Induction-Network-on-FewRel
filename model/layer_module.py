@@ -25,6 +25,7 @@ def neural_tensor_layer(class_vector, query_encoder, out_size=100):
                         initializer=tf.keras.initializers.glorot_normal())
     b = tf.get_variable("b", [C], dtype=tf.float32,
                         initializer=tf.keras.initializers.glorot_normal())
+    # probs:[k_query, c]
     probs = tf.nn.sigmoid(tf.matmul(V, W) + b)  # (Q,C)
     return probs
 

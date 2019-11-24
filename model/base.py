@@ -39,36 +39,48 @@ class Base:
         self.global_step = tf.Variable(name="global_step", initial_value=0, trainable=False)
 
         ## input
-        # input_words:[batch, seq_length]
+        # input_words:[batch = (k_query+k_support)*c, seq_length]
         self.input_words = tf.placeholder(name="input_words", shape=[None, self.sequence_length], dtype=tf.int32)
-        # input_pos1:[batch, seq_length]
+        # input_pos1:[batch = (k_query+k_support)*c, seq_length]
         self.input_pos1 = tf.placeholder(name="input_pos1", shape=[None, self.sequence_length], dtype=tf.int32)
         # input_pos2:[batch, seq_length]
         self.input_pos2 = tf.placeholder(name="input_pos2", shape=[None, self.sequence_length], dtype=tf.int32)
-        # query_label:[batch]
-        self.query_label = tf.placeholder(name="query_label", shape=[None], dtype=tf.int32)  # y [None,num_classes]
+        # query_label:[batch1=k_query]
+        self.query_label = tf.placeholder(name="query_label", shape=[None], dtype=tf.int32)
         self.keep_prob = tf.placeholder(name="keep_probx", dtype=tf.float32)
 
         # embedding matrix
         with tf.name_scope("embedding"):
             if self.embed is not None:
                 print("use word embedding, size:", self.embed.shape)
-                self.word_embedding = tf.Variable(self.embed, trainable=False)
+                self.word_embedding = tf.Variable(self.embed, trainable=False) # 注意:此处embedding是不可trainable
                 self.embed_size = self.embed.shape[1]
             else:
-                self.word_embedding = tf.get_variable(name="word_embedding", shape=[self.vocab_size, self.embed_size],
-                                                      initializer=self.initializer, trainable=True)
+                # [vocab_size, embed_size]
+                self.word_embedding = tf.get_variable(name="word_embedding",
+                                                      shape=[self.vocab_size, self.embed_size],
+                                                      initializer=self.initializer,
+                                                      trainable=True)
+            # 为啥需要2个pos embedding,没明白
+            # [2*seq_length, pos_embed_size=5]
             self.pos1_embedding = tf.get_variable(name="pos1_embedding",
                                                   shape=[2 * self.sequence_length, self.pos_embedding_dim],
                                                   initializer=self.initializer, trainable=True)
+            # [2*seq_length, pos_embed_size=5]
             self.pos2_embedding = tf.get_variable(name="pos2_embedding",
                                                   shape=[2 * self.sequence_length, self.pos_embedding_dim],
                                                   initializer=self.initializer, trainable=True)
 
     def get_embedding(self):
+        # input_words:[batch, seq_length]
+        # word_embedding:[vocab_size, embed_size]
+        # embedded_words:[batch, seq_length, embed_size]
         embedded_words = tf.nn.embedding_lookup(self.word_embedding, self.input_words)
+        # embedd_pos1: [batch, seq_length, pos_embed_size]
         embedded_pos1 = tf.nn.embedding_lookup(self.pos1_embedding, self.input_pos1)
+        # embedd_pos2: [batch, seq_length, pos_embed_size]
         embedded_pos2 = tf.nn.embedding_lookup(self.pos2_embedding, self.input_pos2)
+        # output: [batch, seq_length, embed_size+2*pos_embed_size]
         return tf.concat([embedded_words, embedded_pos1, embedded_pos2], axis=2)
 
     def forward(self):
@@ -123,7 +135,7 @@ class Base:
                 inputs, query_label = train_data_loader.next_one_tf(self.num_classes,
                                                                     self.support_num_per_class,
                                                                     self.query_num_per_class)
-
+                #print("inputs[word]:", inputs["word"].shape) # [35*40]
                 curr_loss, curr_acc, _, curr_summary, global_step = sess.run(
                     [self.loss, self.accuracy, self.optimize, self.summary, self.global_step],
                     feed_dict={self.input_words: inputs['word'],
