@@ -21,7 +21,7 @@ print("{}-way-{}-shot Few-Shot Relation Classification".format(N, K))
 print("Model: {}".format(model_name))
 
 #max_length = 40
-max_length = 40
+max_length = 37
 embedding_file = "./data/glove.6B.5d.json"
 train_data_loader = JSONFileDataLoader('./data/train.json', embedding_file, max_length=max_length)
 val_data_loader = JSONFileDataLoader('./data/val.json', embedding_file, max_length=max_length)

@@ -31,17 +31,36 @@ def neural_tensor_layer(class_vector, query_encoder, out_size=100):
 
 
 def self_attention(inputs):
+    # inputs: [batch=(k_support+k_query)], seq_length, hidden_size]
     _, sequence_length, hidden_size = inputs.shape
     with tf.variable_scope('self_attn'):
-        x_proj = tf.layers.Dense(hidden_size)(inputs)
+        # inputs:[batch, seq_length, hidden_size]
+        # x_proj:[batch, seq_length, hidden_size]
+        x_proj = tf.layers.Dense(units=hidden_size)(inputs) # W_a1:[hidden_size, hidden_size],应该是最后一维上相乘
+        print("x_proj shape:", x_proj.shape) # [?, 40, 40]
         x_proj = tf.nn.tanh(x_proj)
-        u_w = tf.get_variable('W_a2', shape=[hidden_size, 1],
-                              dtype=tf.float32, initializer=tf.keras.initializers.glorot_normal())
-        x = tf.tensordot(x_proj, u_w, axes=1)
-        alphas = tf.nn.softmax(x, axis=1)
+        # u_w:[hidden_size, 1]
+        u_w = tf.get_variable('W_a2',
+                              shape=[hidden_size, 1],
+                              dtype=tf.float32,
+                              initializer=tf.keras.initializers.glorot_normal())
+        # x_proj:[batch, seq_length, hidden_size]
+        # u_w:[hidden_size, 1]
+        # x:[batch, seq_length, 1]
+        x = tf.tensordot(a=x_proj, b=u_w, axes=1) # tensordot:在x_proj的倒数第axes=1维上以及u_w的第axes=1维上矩阵乘积
+        print("x shape:", x.shape) # [?, 37, 1]
+        # alphas:[batch, seq_length, 1]
+        alphas = tf.nn.softmax(x, axis=1) # 在各时间步上计算softmax
         print("alphas shape", alphas.shape)
-        output = tf.matmul(tf.transpose(inputs, [0, 2, 1]), alphas)
-        output = tf.squeeze(output, -1)
+        # inputs_trans: [batch, hidden_size, seq_length]
+        inputs_trans = tf.transpose(a=inputs, perm=[0, 2, 1])
+        # inputs_trans: [batch, hidden_size, seq_length],batch中各时间步的向量
+        # alphas:[batch, seq_length, 1], 各时间步的系数
+        # output:[batch, hidden_size, 1], 各时间步加求和后的向量
+        output = tf.matmul(inputs_trans, alphas) # 类似于batch_matmul
+        # output:[batch, hidden_size]
+        output = tf.squeeze(output, axis=-1)
+        # output:[batch, hidden_size]
         return output
 
 

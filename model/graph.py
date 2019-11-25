@@ -54,7 +54,7 @@ class InductionGraph(Base):
             # 注意:输入的时候,前面是support集,后面是query集
             support_encoder = tf.slice(input_=encoder, begin=[0, 0],
                                        size=[self.num_classes * self.support_num_per_class, self.hidden_size * 2])
-            # query_encoder:[batch1=k_query*c, hidden_size*2], query集中的样本数
+            # query_encoder:[batch1=k_query*c, hidden_size*2], query集中的样本数, 计算query对每类的距离的隐向量
             query_encoder = tf.slice(input_=encoder,
                                      begin=[self.num_classes * self.support_num_per_class, 0],
                                      size=[self.num_classes * self.query_num_per_class, self.hidden_size * 2])
@@ -70,16 +70,16 @@ class InductionGraph(Base):
             print("b_IJ size:", b_IJ.shape) # [5,2]
 
             # support_encoder:[batch1=k_support*c, hidden_size*2], support集中的样本数
-            # class_vector:[c, hidden_size*2], c:class number
+            # class_vector:[c, hidden_size*2], c:class number, 每类的类簇中心向量
             class_vector = dynamic_routing(
                 tf.reshape(support_encoder, [self.num_classes, self.support_num_per_class, -1]), # [c, k, hidden*2]
                 b_IJ)  # (k,hidden_size*2)
             print("class vector size:", class_vector.shape) # [c=5, hidden_size*2=40]
 
         with tf.name_scope("RelationModule"):
-            # class_vector:[c, hidden_size*2], c:class number
-            # query_encoder:[batch1=k_query*c, hidden_size*2], query集中的样本数
-            # probs:[batch1=k_query=25, c=5]
+            # class_vector:[c, hidden_size*2], c:class number, 各类的隐向量簇中心
+            # query_encoder:[batch1=k_query*c, hidden_size*2], query集中的样本数, query在各类上的隐向量表示
+            # probs:[batch1=k_query=25, c=5], query对各类的相似分数分布
             self.probs = neural_tensor_layer(class_vector, query_encoder)
             print("probs size:", self.probs.shape) # [c=5, hidden_size*2=40]
 
