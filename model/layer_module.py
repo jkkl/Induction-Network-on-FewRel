@@ -34,7 +34,7 @@ def self_attention(inputs):
     # inputs: [batch=(k_support+k_query)], seq_length, hidden_size]
     _, sequence_length, hidden_size = inputs.shape
     with tf.variable_scope('self_attn'):
-        # project到某一个维度之后,再做attention
+        # project到某一个维度之后,再与另一个w作点乘，然后与原x作加权求和
         # inputs:[batch, seq_length, hidden_size]
         # x_proj:[batch, seq_length, hidden_size]
         x_proj = tf.layers.Dense(units=hidden_size)(inputs) # W_a1:[hidden_size, hidden_size],应该是最后一维上相乘
