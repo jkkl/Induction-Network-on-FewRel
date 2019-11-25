@@ -9,6 +9,8 @@ import tensorflow as tf
 
 def neural_tensor_layer(class_vector, query_encoder, out_size=100):
     """neural tensor layer (NTN)"""
+    # class_vector: [C, H]
+    # query_encoder: [K*C, H]
     C, H = class_vector.shape
     # print("class_vector shape:", class_vector.shape)
     # print("query_encoder shape:", query_encoder.shape)
@@ -16,19 +18,28 @@ def neural_tensor_layer(class_vector, query_encoder, out_size=100):
                         initializer=tf.keras.initializers.glorot_normal())
     mid_pro = []
     for slice in range(out_size):
-        slice_inter = tf.matmul(tf.matmul(class_vector, M[:, :, slice]), query_encoder, transpose_b=True)  # (C,Q)
+        # class_vector:[C, H]
+        # M[:,:,slice]: [H, H],注意是2维矩阵
+        # class_m:[C, H]
+        class_m = tf.matmul(class_vector, M[:, :, slice]) # [5, 40]
+        #print("class_m:", class_m, "m slice:", M[:,:,slice])
+        # slice_inter:[C=5, K*C=25=5*5]
+        slice_inter = tf.matmul(class_m, query_encoder, transpose_b=True)  # (C,Q)
+        #print("slice_inter:", slice_inter)
+        # list of [C, K*C]
         mid_pro.append(slice_inter)
-    tensor_bi_product = tf.concat(mid_pro, axis=0)  # (C*K,Q)
-    # print("tensor_bi_product shape:{}".format(tensor_bi_product.shape))
-    V = tf.nn.relu(tf.transpose(tensor_bi_product))
+
+    # tensor_bi_product:[C*out_size, K*C]
+    tensor_bi_product = tf.concat(mid_pro, axis=0)  # (C*out_size, K*C)
+    print("tensor_bi_product shape:{}".format(tensor_bi_product.shape))
+    V = tf.nn.relu(tf.transpose(tensor_bi_product)) # [K*C, C*out_size]
     W = tf.get_variable("w", [C * out_size, C], dtype=tf.float32,
                         initializer=tf.keras.initializers.glorot_normal())
     b = tf.get_variable("b", [C], dtype=tf.float32,
                         initializer=tf.keras.initializers.glorot_normal())
-    # probs:[k_query, c]
-    probs = tf.nn.sigmoid(tf.matmul(V, W) + b)  # (Q,C)
+    # probs:[batch=k_query*c, c], 每类下有k_query
+    probs = tf.nn.sigmoid(tf.matmul(V, W) + b)  # [batch=K*C, C]
     return probs
-
 
 def self_attention(inputs):
     # inputs: [batch=(k_support+k_query)], seq_length, hidden_size]
@@ -67,32 +78,55 @@ def self_attention(inputs):
 
 def dynamic_routing(input, b_IJ, iter_routing=3):
     ''' The routing algorithm.'''
-
+    """
+    input:[c, k_support, hidden]
+    b_IJ:[c, k_support]
+    """
     C, K, H = input.shape
-    W = tf.get_variable('W_s', shape=[H, H],
-                        dtype=tf.float32, initializer=tf.keras.initializers.glorot_normal())
+    W = tf.get_variable(name='W_s',
+                        shape=[H, H],
+                        dtype=tf.float32,
+                        initializer=tf.keras.initializers.glorot_normal())
 
     for r_iter in range(iter_routing):
         with tf.variable_scope('iter_' + str(r_iter)):
-            d_I = tf.nn.softmax(tf.reshape(b_IJ, [C, K, 1]), axis=1)
+            # b_IJ:[c, k_support]
+            # d_I:[c, k_support, 1]
+            d_I = tf.nn.softmax(tf.reshape(b_IJ, shape=[C, K, 1]), axis=1)
             # for all samples j = 1, ..., K in class i:
-            e_IJ = tf.reshape(tf.matmul(tf.reshape(input, [-1, H]), W), [C, K, -1])  # (C,K,H)
+            # input:[c, k_support, hidden]
+            # W:[hidden, hidden]
+            # e_IJ:[c, k_support, hidden]
+            e_IJ = tf.reshape(tf.matmul(tf.reshape(input, [-1, H]), W), shape=[C, K, -1])  # (C,K,H)
+            # d_I:[c, k_support, 1]
+            # e_IJ:[c, k_support, hidden], multiply为点乘
+            # c_I:[c, 1, hidden]
             c_I = tf.reduce_sum(tf.multiply(d_I, e_IJ), axis=1, keepdims=True)  # (C,1,H)
+            # c_I:[c, hidden]
             c_I = tf.reshape(c_I, [C, -1])  # (C,H)
             c_I = squash(c_I)  # (C,H)
+            # e_IJ:[c, k_support, hidden]
+            # c_I reshape:[c, hidden, 1], matmul中的两个3d矩阵的 后两维必须match,以适合矩阵相乘,类似于 batch_matmul
+            # c_produce_e: [c, k_support, 1]
             c_produce_e = tf.matmul(e_IJ, tf.reshape(c_I, [C, H, 1]))  # (C,K,1)
+
             # for all samples j = 1, ..., K in class i:
+            # b_IJ:[c, k_support]
             b_IJ += tf.reshape(c_produce_e, [C, K])
 
+    # c_I:[c, hidden]
     return c_I
 
 
 def squash(vector):
-    '''Squashing function corresponding to Eq. 1'''
-    vec_squared_norm = tf.reduce_sum(tf.square(vector), 1, keepdims=True)
+    '''Squashing function corresponding to Eq. 1
+        f(x) = x^2/(1+x^2)* x/|x|
+    '''
+    # vector:[c, hidden]
+    vec_squared_norm = tf.reduce_sum(tf.square(vector), axis=1, keepdims=True)
     scalar_factor = vec_squared_norm / (1 + vec_squared_norm) / tf.sqrt(vec_squared_norm + 1e-9)
     vec_squashed = scalar_factor * vector  # element-wise
-    return (vec_squashed)
+    return vec_squashed
 
 
 if __name__ == "__main__":
@@ -107,8 +141,7 @@ if __name__ == "__main__":
     query_encoder = tf.slice(encoder, [9, 0], [15, 10])
 
     support_encoder = tf.reshape(support_encoder, [3, 3, -1])
-    b_IJ = tf.constant(
-        np.zeros([3, 3], dtype=np.float32))
+    b_IJ = tf.constant(np.zeros([3, 3], dtype=np.float32))
     class_vector = dynamic_routing(support_encoder, b_IJ)
     inter = neural_tensor_layer(class_vector, query_encoder, out_size=10)
 

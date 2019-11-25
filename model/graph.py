@@ -64,29 +64,28 @@ class InductionGraph(Base):
             print("query_encoder:", query_encoder.shape) # [25, 40]
 
         with tf.name_scope("InductionModule"):
-            # b_IJ:[c=5, k_support=2], 每个support的样本对各类的打分分布矩阵
-            b_IJ = tf.constant(
-                np.zeros([self.num_classes, self.support_num_per_class], dtype=np.float32))
+            # b_IJ:[c=5, k_support=2], 每个类class_i在support的样本j上的权重分数
+            b_IJ = tf.constant(np.zeros([self.num_classes, self.support_num_per_class], dtype=np.float32))
             print("b_IJ size:", b_IJ.shape) # [5,2]
 
             # support_encoder:[batch1=k_support*c, hidden_size*2], support集中的样本数
             # class_vector:[c, hidden_size*2], c:class number, 每类的类簇中心向量
             class_vector = dynamic_routing(
-                tf.reshape(support_encoder, [self.num_classes, self.support_num_per_class, -1]), # [c, k, hidden*2]
-                b_IJ)  # (k,hidden_size*2)
+                tf.reshape(support_encoder, [self.num_classes, self.support_num_per_class, -1]), # [c, k_support, hidden*2]
+                b_IJ)  # (k_support,hidden_size*2)
             print("class vector size:", class_vector.shape) # [c=5, hidden_size*2=40]
 
         with tf.name_scope("RelationModule"):
             # class_vector:[c, hidden_size*2], c:class number, 各类的隐向量簇中心
             # query_encoder:[batch1=k_query*c, hidden_size*2], query集中的样本数, query在各类上的隐向量表示
-            # probs:[batch1=k_query=25, c=5], query对各类的相似分数分布
-            self.probs = neural_tensor_layer(class_vector, query_encoder)
-            print("probs size:", self.probs.shape) # [c=5, hidden_size*2=40]
+            # probs:[batch1=k_query*c=25, c=5], query对各类的相似分数分布,每类下共有k_query个样本
+            self.probs = neural_tensor_layer(class_vector, query_encoder) # [k_query*c, c]
+            print("probs size:", self.probs.shape)  #[c=5, hidden_size*2=40]
 
     def build_loss(self):
         with tf.name_scope("loss"):
-            # query_label:[batch1=k_query]
-            # labels_one_hot:[batch1=k_query, c=num_classes]
+            # query_label:[batch1=k_query*c]
+            # labels_one_hot:[batch1=k_query*c, c=num_classes]
             labels_one_hot = tf.one_hot(self.query_label, self.num_classes, dtype=tf.float32)
             # 回归平方损失
             losses = tf.losses.mean_squared_error(labels=labels_one_hot, predictions=self.probs)
@@ -105,4 +104,3 @@ class InductionGraph(Base):
 
             self.loss = losses + tf.add_n([tf.nn.l2_loss(v) for v in l2_losses]) * self.l2_lambda
             self.loss = losses
-

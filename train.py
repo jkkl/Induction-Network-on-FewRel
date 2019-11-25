@@ -28,10 +28,12 @@ val_data_loader = JSONFileDataLoader('./data/val.json', embedding_file, max_leng
 
 
 if model_name == 'induction':
-    model = InductionGraph(N, K, Q=5,
+    model = InductionGraph(N=N,
+                           K=K,
+                           Q=5,
                            pred_embed=train_data_loader.word_vec_mat,
                            sequence_length=max_length,
                            hidden_size=20
                            )
-    model.train((train_data_loader, val_data_loader),
+    model.train(dataloader=(train_data_loader, val_data_loader),
                 model_dir_path="checkpoints/inductionNetwork_test")

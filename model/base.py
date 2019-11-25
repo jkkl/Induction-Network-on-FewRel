@@ -43,9 +43,9 @@ class Base:
         self.input_words = tf.placeholder(name="input_words", shape=[None, self.sequence_length], dtype=tf.int32)
         # input_pos1:[batch = (k_query+k_support)*c, seq_length]
         self.input_pos1 = tf.placeholder(name="input_pos1", shape=[None, self.sequence_length], dtype=tf.int32)
-        # input_pos2:[batch, seq_length]
+        # input_pos2:[batch = (k_query+k_support)*c, seq_length]
         self.input_pos2 = tf.placeholder(name="input_pos2", shape=[None, self.sequence_length], dtype=tf.int32)
-        # query_label:[batch1=k_query]
+        # query_label:[batch1=k_query*c]
         self.query_label = tf.placeholder(name="query_label", shape=[None], dtype=tf.int32)
         self.keep_prob = tf.placeholder(name="keep_probx", dtype=tf.float32)
 
