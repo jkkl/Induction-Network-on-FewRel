@@ -42,6 +42,15 @@ def neural_tensor_layer(class_vector, query_encoder, out_size=100):
     return probs
 
 def self_attention(inputs):
+    """
+    a = softmax(Wa2*tanh(Wa1*H^T))
+    e =sum_{t=1}{at*ht}
+
+    a:[1,T]
+    Wa2:[1,da]
+    Wa1:[da, 2u]
+    H^T:[2u, T]
+    """
     # inputs: [batch=(k_support+k_query)], seq_length, hidden_size]
     _, sequence_length, hidden_size = inputs.shape
     with tf.variable_scope('self_attn'):
@@ -81,11 +90,19 @@ def dynamic_routing(input, b_IJ, iter_routing=3):
     """
     input:[c, k_support, hidden]
     b_IJ:[c, k_support]
+   
+    e'^s_ij = squash(Ws* e^s_ij + bs)
+    Ws:[2u,2u] 
+    e^s_ij:[2u,1], class i sample j
+    bs:[2u,1]
     """
     C, K, H = input.shape
     W = tf.get_variable(name='W_s',
                         shape=[H, H],
                         dtype=tf.float32,
+                        initializer=tf.keras.initializers.glorot_normal())
+
+    b = tf.get_variable("s_bias", [C], dtype=tf.float32,
                         initializer=tf.keras.initializers.glorot_normal())
 
     for r_iter in range(iter_routing):
@@ -94,10 +111,10 @@ def dynamic_routing(input, b_IJ, iter_routing=3):
             # d_I:[c, k_support, 1]
             d_I = tf.nn.softmax(tf.reshape(b_IJ, shape=[C, K, 1]), axis=1)
             # for all samples j = 1, ..., K in class i:
-            # input:[c, k_support, hidden]
+            # input reshape:[c* k_support, hidden]
             # W:[hidden, hidden]
             # e_IJ:[c, k_support, hidden]
-            e_IJ = tf.reshape(tf.matmul(tf.reshape(input, [-1, H]), W), shape=[C, K, -1])  # (C,K,H)
+            e_IJ = tf.reshape(tf.matmul(tf.reshape(input, [-1, H]), W), shape=[C, K, -1])  # (C,K,H),论文中此处有个bias,但这里少了
             # d_I:[c, k_support, 1]
             # e_IJ:[c, k_support, hidden], multiply为点乘
             # c_I:[c, 1, hidden]
@@ -120,7 +137,7 @@ def dynamic_routing(input, b_IJ, iter_routing=3):
 
 def squash(vector):
     '''Squashing function corresponding to Eq. 1
-        f(x) = x^2/(1+x^2)* x/|x|
+        f(x) = x^2/(1+x^2)* x/||x||
     '''
     # vector:[c, hidden]
     vec_squared_norm = tf.reduce_sum(tf.square(vector), axis=1, keepdims=True)
