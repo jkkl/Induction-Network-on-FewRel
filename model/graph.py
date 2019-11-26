@@ -63,9 +63,10 @@ class InductionGraph(Base):
             print("support_encoder:", support_encoder.shape) # [10, 40]
             print("query_encoder:", query_encoder.shape) # [25, 40]
 
+        # 归纳知识:提取与归纳支持集中每类的表示, 此处没有query集的处理
         with tf.name_scope("InductionModule"):
             # b_IJ:[c=5, k_support=2], 每个类class_i在support的样本j上的权重分数
-            b_IJ = tf.constant(np.zeros([self.num_classes, self.support_num_per_class], dtype=np.float32))
+            b_IJ = tf.constant(np.zeros([self.num_classes, self.support_num_per_class], dtype=np.float32)) # 论文式(5)中的b_s
             print("b_IJ size:", b_IJ.shape) # [5,2]
 
             # support_encoder:[batch1=k_support*c, hidden_size*2], support集中的样本数

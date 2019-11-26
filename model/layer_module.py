@@ -23,6 +23,8 @@ def neural_tensor_layer(class_vector, query_encoder, out_size=100):
         # class_m:[C, H]
         class_m = tf.matmul(class_vector, M[:, :, slice]) # [5, 40]
         #print("class_m:", class_m, "m slice:", M[:,:,slice])
+        # class_m:[C, H]
+        # query_encoder: [K*C, H]
         # slice_inter:[C=5, K*C=25=5*5]
         slice_inter = tf.matmul(class_m, query_encoder, transpose_b=True)  # (C,Q)
         #print("slice_inter:", slice_inter)
@@ -37,7 +39,7 @@ def neural_tensor_layer(class_vector, query_encoder, out_size=100):
                         initializer=tf.keras.initializers.glorot_normal())
     b = tf.get_variable("b", [C], dtype=tf.float32,
                         initializer=tf.keras.initializers.glorot_normal())
-    # probs:[batch=k_query*c, c], 每类下有k_query
+    # probs:[batch=k_query*c, c], 每类下有k_query, 每个query都预测属于某个类的概率
     probs = tf.nn.sigmoid(tf.matmul(V, W) + b)  # [batch=K*C, C]
     return probs
 
@@ -86,15 +88,18 @@ def self_attention(inputs):
 
 
 def dynamic_routing(input, b_IJ, iter_routing=3):
+    # 归纳网络:对支持集中不同的类进行归纳
     ''' The routing algorithm.'''
     """
     input:[c, k_support, hidden]
-    b_IJ:[c, k_support]
+    b_IJ:[c, k_support], 式(5)中的bs
    
     e'^s_ij = squash(Ws* e^s_ij + bs)
     Ws:[2u,2u] 
     e^s_ij:[2u,1], class i sample j
     bs:[2u,1]
+    
+    支持集中的所有向量共享同一个w_s以及bias
     """
     C, K, H = input.shape
     W = tf.get_variable(name='W_s',
@@ -102,26 +107,25 @@ def dynamic_routing(input, b_IJ, iter_routing=3):
                         dtype=tf.float32,
                         initializer=tf.keras.initializers.glorot_normal())
 
-    b = tf.get_variable("s_bias", [C], dtype=tf.float32,
-                        initializer=tf.keras.initializers.glorot_normal())
+    #b = tf.get_variable("Ws_bias", [C], dtype=tf.float32, initializer=tf.keras.initializers.zeros())
 
     for r_iter in range(iter_routing):
         with tf.variable_scope('iter_' + str(r_iter)):
             # b_IJ:[c, k_support]
             # d_I:[c, k_support, 1]
-            d_I = tf.nn.softmax(tf.reshape(b_IJ, shape=[C, K, 1]), axis=1)
+            d_I = tf.nn.softmax(tf.reshape(b_IJ, shape=[C, K, 1]), axis=1) #论文式(7), 对于每个类选择一个比较好的样本d_I
             # for all samples j = 1, ..., K in class i:
             # input reshape:[c* k_support, hidden]
             # W:[hidden, hidden]
             # e_IJ:[c, k_support, hidden]
-            e_IJ = tf.reshape(tf.matmul(tf.reshape(input, [-1, H]), W), shape=[C, K, -1])  # (C,K,H),论文中此处有个bias,但这里少了
+            e_IJ = tf.reshape(tf.matmul(tf.reshape(input, [-1, H]), W), shape=[C, K, -1])  # (C,K,H), 论文式(5)
             # d_I:[c, k_support, 1]
             # e_IJ:[c, k_support, hidden], multiply为点乘
-            # c_I:[c, 1, hidden]
-            c_I = tf.reduce_sum(tf.multiply(d_I, e_IJ), axis=1, keepdims=True)  # (C,1,H)
-            # c_I:[c, hidden]
+            # c_I:[c, 1, hidden], 每个类下各样本的加权平均和
+            c_I = tf.reduce_sum(tf.multiply(d_I, e_IJ), axis=1, keepdims=True)  # (C,1,H), 论文式(8)
+            # c_I:[c, hidden], 每个类的类簇中心
             c_I = tf.reshape(c_I, [C, -1])  # (C,H)
-            c_I = squash(c_I)  # (C,H)
+            c_I = squash(c_I)  # (C,H), squash在axis=1维度上归一化
             # e_IJ:[c, k_support, hidden]
             # c_I reshape:[c, hidden, 1], matmul中的两个3d矩阵的 后两维必须match,以适合矩阵相乘,类似于 batch_matmul
             # c_produce_e: [c, k_support, 1]
@@ -129,7 +133,7 @@ def dynamic_routing(input, b_IJ, iter_routing=3):
 
             # for all samples j = 1, ..., K in class i:
             # b_IJ:[c, k_support]
-            b_IJ += tf.reshape(c_produce_e, [C, K])
+            b_IJ += tf.reshape(c_produce_e, [C, K]) # 每类与每个样本的耦合系数,论文中式(10)
 
     # c_I:[c, hidden]
     return c_I
@@ -137,6 +141,7 @@ def dynamic_routing(input, b_IJ, iter_routing=3):
 
 def squash(vector):
     '''Squashing function corresponding to Eq. 1
+        vector:[C, H]
         f(x) = x^2/(1+x^2)* x/||x||
     '''
     # vector:[c, hidden]
