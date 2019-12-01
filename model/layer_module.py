@@ -40,7 +40,7 @@ def neural_tensor_layer(class_vector, query_encoder, out_size=100):
     b = tf.get_variable("b", [C], dtype=tf.float32,
                         initializer=tf.keras.initializers.glorot_normal())
     # probs:[batch=k_query*c, c], 每类下有k_query, 每个query都预测属于某个类的概率
-    probs = tf.nn.sigmoid(tf.matmul(V, W) + b)  # [batch=K*C, C]
+    probs = tf.nn.sigmoid(tf.matmul(V, W) + b)  # [batch=K*C, C],不知为何不用softmax
     return probs
 
 def self_attention(inputs):
