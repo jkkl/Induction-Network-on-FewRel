@@ -32,7 +32,7 @@ if model_name == 'induction':
                            K=K,
                            Q=5,
                            pred_embed=train_data_loader.word_vec_mat,
-                           sequence_length=max_length,
+                           sequence_length=max_length, # 这里是一个固定的length,都padding到40
                            hidden_size=20
                            )
     model.train(dataloader=(train_data_loader, val_data_loader),

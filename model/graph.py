@@ -48,7 +48,9 @@ class InductionGraph(Base):
             # output_rnn: [batch=(k_support+k_query)], seq_length, hidden_size*2]
             output_rnn = tf.concat(outputs, axis=2)  # [k*c,sequence_length,hidden_size*2]
             # encoder: [batch, hidden_size*2]
-            encoder = self_attention(output_rnn)  # (k*c,hidden_size*2)
+            # mask_padding:[batch, seq_length]
+            mask_padding = tf.cast(self.mask_padding>0, tf.int32) # 原始mask中有1,2,3,0,只有0是padding
+            encoder, self.alphas = self_attention(output_rnn, mask_padding)  # (k*c,hidden_size*2)
             # encoder: [batch, hidden_size*2]
             # support_encoder:[batch1=k_support*c, hidden_size*2], support集中的样本数
             # 注意:输入的时候,前面是support集,后面是query集

@@ -24,6 +24,7 @@ class Base:
         # self.epoch_num = kwds.get("epoch_num", )
         self.pos_embedding_dim = 5
         self.keepProb = kwds.get("keep_prob", 0.9)
+        self.alphas = None
 
     def build(self):
         self.initial_params()
@@ -47,6 +48,7 @@ class Base:
         self.input_pos2 = tf.placeholder(name="input_pos2", shape=[None, self.sequence_length], dtype=tf.int32)
         # query_label:[batch1=k_query*c]
         self.query_label = tf.placeholder(name="query_label", shape=[None], dtype=tf.int32)
+        self.mask_padding = tf.placeholder(name="mask_padding", shape=[None, self.sequence_length], dtype=tf.int32) # 每个query的真实长度
         self.keep_prob = tf.placeholder(name="keep_probx", dtype=tf.float32)
 
         # embedding matrix
@@ -135,22 +137,28 @@ class Base:
                 inputs, query_label = train_data_loader.next_one_tf(self.num_classes,
                                                                     self.support_num_per_class,
                                                                     self.query_num_per_class)
+                # mask里值为:1,2,3,0
+                print("inputs mask:", inputs["mask"]) # support_set + query_set mask, shape:[(query+support)*class=(2+5)*5=35, max_seq_length = 37]
                 #print("inputs[word]:", inputs["word"].shape) # [35*40]
-                curr_loss, curr_acc, _, curr_summary, global_step = sess.run(
-                    [self.loss, self.accuracy, self.optimize, self.summary, self.global_step],
+                curr_loss, curr_acc, _, curr_summary, global_step, attention_mask = sess.run(
+                    [self.loss, self.accuracy, self.optimize, self.summary, self.global_step, self.alphas],
                     feed_dict={self.input_words: inputs['word'],
-                               self.input_pos1: inputs['pos1'],
-                               self.input_pos2: inputs['pos2'],
+                               self.input_pos1: inputs['pos1'], #
+                               self.input_pos2: inputs['pos2'], #
                                self.query_label: query_label,
-                               self.keep_prob: self.keepProb}
+                               self.keep_prob: self.keepProb,
+                               self.mask_padding: inputs['mask']
+                               }
                 )
+
+                print("attention mask:", attention_mask)
                 train_writer.add_summary(curr_summary, global_step)
                 iter_loss += curr_loss
                 iter_right += curr_acc
                 iter_sample += 1
+
                 if it % 100 == 0:
-                    print(
-                        '[train] step:{0:4} | loss: {1:2.6f}, accuracy: {2:3.2f}%'.format(it + 1,
+                    print('[train] step:{0:4} | loss: {1:2.6f}, accuracy: {2:3.2f}%'.format(it + 1,
                                                                                           iter_loss / iter_sample,
                                                                                           100 * iter_right / iter_sample) + '\r')
 

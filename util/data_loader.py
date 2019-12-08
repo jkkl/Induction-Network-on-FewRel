@@ -157,8 +157,8 @@ class JSONFileDataLoader(FileDataLoader):
                 for ins in self.ori_data[relation]:
                     head = ins['h'][0]
                     tail = ins['t'][0]
-                    pos1 = ins['h'][2][0][0]
-                    pos2 = ins['t'][2][0][0]
+                    pos1 = ins['h'][2][0][0] # head 的第一个字符所在的位置, "h": ["cape girardeau bridge", "Q5034838", [[26, 27, 28]]],
+                    pos2 = ins['t'][2][0][0] # tail 的第一个字符所在的位置, "t": ["cape girardeau bridge", "Q5034838", [[26, 27, 28]]],
                     words = ins['tokens']
                     cur_ref_data_word = self.data_word[i]
                     for j, word in enumerate(words):
@@ -179,9 +179,9 @@ class JSONFileDataLoader(FileDataLoader):
                     pos_min = min(pos1, pos2)
                     pos_max = max(pos1, pos2)
                     for j in range(max_length):
-                        self.data_pos1[i][j] = j - pos1 + max_length
+                        self.data_pos1[i][j] = j - pos1 + max_length # pos1,pos2分别代表head以及tail所在entity的位置
                         self.data_pos2[i][j] = j - pos2 + max_length
-                        if j >= self.data_length[i]:
+                        if j >= self.data_length[i]: # 超出句子长度都padding 0
                             self.data_mask[i][j] = 0
                         elif j <= pos_min:
                             self.data_mask[i][j] = 1

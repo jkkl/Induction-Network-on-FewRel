@@ -3,9 +3,7 @@
 Created on: 2019/5/27 14:29
 @Author: zsfeng
 """
-
 import tensorflow as tf
-
 
 def neural_tensor_layer(class_vector, query_encoder, out_size=100):
     """neural tensor layer (NTN)"""
@@ -43,7 +41,7 @@ def neural_tensor_layer(class_vector, query_encoder, out_size=100):
     probs = tf.nn.sigmoid(tf.matmul(V, W) + b)  # [batch=K*C, C],不知为何不用softmax
     return probs
 
-def self_attention(inputs):
+def self_attention(inputs, mask):
     """
     a = softmax(Wa2*tanh(Wa1*H^T))
     e =sum_{t=1}{at*ht}
@@ -72,8 +70,16 @@ def self_attention(inputs):
         # x:[batch, seq_length, 1]
         x = tf.tensordot(a=x_proj, b=u_w, axes=1) # tensordot:在x_proj的倒数第axes=1维上以及u_w的第axes=1维上矩阵乘积
         print("x shape:", x.shape) # [?, 37, 1]
+
+        # Since attention_mask is 1.0 for positions we want to attend and 0.0 for
+        # masked positions, this operation will create a tensor which is 0.0 for
+        # positions we want to attend and -10000.0 for masked positions.
+
+        # mask_adder:[batch, seq_length, 1]
+        mask_adder = (1.0 - tf.cast(tf.expand_dims(mask, -1), tf.float32)) * (-2**31)
+
         # alphas:[batch, seq_length, 1]
-        alphas = tf.nn.softmax(x, axis=1) # 在各时间步上计算softmax
+        alphas = tf.nn.softmax(x + mask_adder, axis=1) # 在各时间步上计算softmax
         print("alphas shape", alphas.shape)
         # inputs_trans: [batch, hidden_size, seq_length]
         inputs_trans = tf.transpose(a=inputs, perm=[0, 2, 1])
@@ -84,7 +90,7 @@ def self_attention(inputs):
         # output:[batch, hidden_size]
         output = tf.squeeze(output, axis=-1)
         # output:[batch, hidden_size]
-        return output
+        return output, alphas
 
 
 def dynamic_routing(input, b_IJ, iter_routing=3):
@@ -155,9 +161,13 @@ if __name__ == "__main__":
     import numpy as np
 
     inputs = np.random.random((24, 5, 10))  # (3*3+3*5,seq_len,lstm_hidden_size*2)
+    mask = np.ones((24, 5))
+    mask[0][4:] = 0
+    mask[1][3:] = 0
+    mask[2][2:] = 0
     # print (inputs)
     inputs = tf.constant(inputs, dtype=tf.float32)
-    encoder = self_attention(inputs)  # (k*c,lstm_hidden_size*2)
+    encoder, att_mask = self_attention(inputs, mask)  # (k*c,lstm_hidden_size*2)
 
     support_encoder = tf.slice(encoder, [0, 0], [9, 10])
     query_encoder = tf.slice(encoder, [9, 0], [15, 10])
@@ -184,3 +194,4 @@ if __name__ == "__main__":
         print(predict.eval())
         print(correct_prediction.eval())
         print(accuracy.eval())
+        print("att_mask:", att_mask.eval())
