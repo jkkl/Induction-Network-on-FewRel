@@ -98,7 +98,7 @@ def dynamic_routing(input, b_IJ, iter_routing=3):
     ''' The routing algorithm.'''
     """
     input:[c, k_support, hidden]
-    b_IJ:[c, k_support], 式(5)中的bs
+    b_IJ:[c, k_support], 此code中并没有bs
    
     e'^s_ij = squash(Ws* e^s_ij + bs)
     Ws:[2u,2u] 
@@ -124,7 +124,7 @@ def dynamic_routing(input, b_IJ, iter_routing=3):
             # input reshape:[c* k_support, hidden]
             # W:[hidden, hidden]
             # e_IJ:[c, k_support, hidden]
-            e_IJ = tf.reshape(tf.matmul(tf.reshape(input, [-1, H]), W), shape=[C, K, -1])  # (C,K,H), 论文式(5)
+            e_IJ = tf.reshape(tf.matmul(tf.reshape(input, [-1, H]), W), shape=[C, K, -1])  # (C,K,H), 论文式(5), 注意:与论文中不同的是,此处并没有bs
             # d_I:[c, k_support, 1]
             # e_IJ:[c, k_support, hidden], multiply为点乘
             # c_I:[c, 1, hidden], 每个类下各样本的加权平均和
