@@ -7,13 +7,15 @@ import tensorflow as tf
 
 def neural_tensor_layer(class_vector, query_encoder, out_size=100):
     """neural tensor layer (NTN)"""
+    # 3. Relation Module
     # class_vector: [C, H]
-    # query_encoder: [K*C, H]
+    # query_encoder: [K_q*C, H], 每类里会有K_q个query,注意,这里的K不一定与support vector里的大小相等
     C, H = class_vector.shape
     # print("class_vector shape:", class_vector.shape)
     # print("query_encoder shape:", query_encoder.shape)
     M = tf.get_variable("M", [H, H, out_size], dtype=tf.float32,
                         initializer=tf.keras.initializers.glorot_normal())
+    # 遍历不同的out_size,可以看成是从不同的维度去观察矩阵
     mid_pro = []
     for slice in range(out_size):
         # class_vector:[C, H]
@@ -22,23 +24,26 @@ def neural_tensor_layer(class_vector, query_encoder, out_size=100):
         class_m = tf.matmul(class_vector, M[:, :, slice]) # [5, 40]
         #print("class_m:", class_m, "m slice:", M[:,:,slice])
         # class_m:[C, H]
-        # query_encoder: [K*C, H]
-        # slice_inter:[C=5, K*C=25=5*5]
+        # query_encoder: [K_q*C, H]
+        # slice_inter:[C=5, K_q*C=25=5*5]
         slice_inter = tf.matmul(class_m, query_encoder, transpose_b=True)  # (C,Q)
         #print("slice_inter:", slice_inter)
-        # list of [C, K*C]
+        # list of [C, K_q*C]
         mid_pro.append(slice_inter)
 
-    # tensor_bi_product:[C*out_size, K*C]
-    tensor_bi_product = tf.concat(mid_pro, axis=0)  # (C*out_size, K*C)
+    # tensor_bi_product:[C*out_size, K_q*C]
+    tensor_bi_product = tf.concat(mid_pro, axis=0)  # (C*out_size, K_q*C)
     print("tensor_bi_product shape:{}".format(tensor_bi_product.shape))
-    V = tf.nn.relu(tf.transpose(tensor_bi_product)) # [K*C, C*out_size]
+    V = tf.nn.relu(tf.transpose(tensor_bi_product)) # [K_q*C, C*out_size]
+    # W:[C*out_size, C]
     W = tf.get_variable("w", [C * out_size, C], dtype=tf.float32,
                         initializer=tf.keras.initializers.glorot_normal())
     b = tf.get_variable("b", [C], dtype=tf.float32,
                         initializer=tf.keras.initializers.glorot_normal())
-    # probs:[batch=k_query*c, c], 每类下有k_query, 每个query都预测属于某个类的概率
-    probs = tf.nn.sigmoid(tf.matmul(V, W) + b)  # [batch=K*C, C],不知为何不用softmax
+    # V:[K_q*C, C*out_size]
+    # W:[C*out_size, C]
+    # probs:[batch=K_q*C, C], 每类下有k_q, 每个query都预测属于某个类的概率
+    probs = tf.nn.sigmoid(tf.matmul(V, W) + b)  # [batch=K_q*C, C],不知为何不用softmax
     return probs
 
 def self_attention(inputs, mask):
