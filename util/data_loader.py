@@ -257,6 +257,11 @@ class JSONFileDataLoader(FileDataLoader):
         return support_set, query_set, query_label
 
     def next_one_tf(self, N, K, Q):
+        '''
+        N: number of classes
+        K: number of support set of per class
+        Q: number of query set of per class
+        '''
         target_classes = random.sample(self.rel2scope.keys(), N)
         support_set = {'word': [], 'pos1': [], 'pos2': [], 'mask': []}
         query_set = {'word': [], 'pos1': [], 'pos2': [], 'mask': []}
