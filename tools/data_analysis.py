@@ -14,13 +14,15 @@ class DataAnalysis:
     '''
 
     def __init__(self, input_file):
+        '''
+        input_file: cat_des\tquery
+        '''
         self.data_dir = input_file[0: input_file.rfind("\\")]
         self.input_file_name = input_file[input_file.rfind("\\") + 1: input_file.rfind(".")]
         self.input_file = input_file
         self.input_pd = self.load_data(input_file)
-        self.class_num = self.class_static()
-        self.class_num_distribute = None
-        self.class_desc_file_name = 'class_desc'
+        # 将输入文件的类别信息写入到excel
+        self.class_static()
 
     def load_data(self, input_file):
         '''
