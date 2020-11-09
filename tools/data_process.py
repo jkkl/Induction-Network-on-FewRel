@@ -18,6 +18,11 @@ REQUEST_CONTENT = "RequestContent"
 ADDITIONAL_MESSAGE = "AdditionalMessage"
 
 
+#INPUT/OUTPUT
+OUTPUT_SUFFIX = ".analysis.xlsx"
+FOR_LABEL_SUFFIX = "for_label.xlsx"
+
+
 class DataProcess:
     '''
     处理日志文件，将日志、标注文件转为训练数据
@@ -109,8 +114,9 @@ class DataProcess:
 
 def test_data_describe(test_label_data, emotion_intention_map_file=None, intention_134_cat_dim=None):
     '''
-    统计分析测试文件中的类别情况
+    统计分析测试文件中的类别情况,将统计信息输出到文件
     '''
+    writer = pd.ExcelWriter(test_label_data + OUTPUT_SUFFIX)
     #加载标注文件
     test_df = DataProcess.get_sample_from_label_file(test_label_data)
     test_df = DataProcess.data_filter(test_df)
@@ -130,9 +136,14 @@ def test_data_describe(test_label_data, emotion_intention_map_file=None, intenti
 
     assert cat_not_in_dim.count() == 0
 
-
-
     #统计各个类别分布
+    test_cat_count = test_df[INTENT_DESC].value_counts()
+    test_cat_describe = test_cat_count.describe()
+    test_cat_count.to_excel(writer, sheet_name='count')
+    test_cat_describe.to_excel(writer, sheet_name='desc')
+    cat_not_in_test.to_excel(writer, sheet_name='lack_sample_cat')
+    cat_not_in_dim.to_excel(writer, sheet_name='error_cat')
+    writer.save()
 
 
 
@@ -144,15 +155,47 @@ def test_data_describe(test_label_data, emotion_intention_map_file=None, intenti
     pass
 
 
+def sample_data_from_log(log_file_path, max_per_cat):
+    # 加载log数据
+
+
+    # 按照样本类别随机采样，
+    pass
+
+
 if __name__ == '__main__':
-    # data_dir = "C:\\Users\\User\\Documents\\project\\intention\\data\\"
+    data_dir = "C:\\Users\\User\\Documents\\project\\intention\\data\\test\\"
     # label_file = data_dir + "IntentionDetection_汇总.xlsx"
     # cat_info_file = data_dir + "queryintention.response.leilei.txt"
     # # DataProcess.trans_label2sample(label_file, label_file+".sample.xlsx", 1500)
     # DataProcess.cat_diff(cat_info_file, label_file)
-    test_data_dir ="C:\\Users\\User\\Documents\\project\\intention\\data\\test\\"
+
+
+    # TASK1:  统计分析测评文件中类别分布、五样本类别、误样本类别、完成emotion和intention类别映射
+    test_data_dir = data_dir
     test_label_data = test_data_dir + "intention_test_labeled_data.xlsx"
     emotion_intention_map_file = test_data_dir + "emotion_intention_map.txt"
-    # intention_cat_dim_file = test_data_dir + "intention_134_cat_dim.txt"
     intention_cat_dim_file = test_data_dir + "intention_134_cat_dim_online.txt"
     test_data_describe(test_label_data, emotion_intention_map_file, intention_cat_dim_file)
+
+
+    # TASK2: 从无标日志中采样标注样本
+    log_data_dir = data_dir
+    log_file_path = log_data_dir + "intention_emotion_last30day.csv"
+    max_per_cat = "10"
+    sample_data_from_log(log_file_path, max_per_cat)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
