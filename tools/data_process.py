@@ -8,19 +8,25 @@ import json
 
 import pandas as pd
 
-from tools.common import load_data2df
+from tools.common import *
 
 
 #定义数据列名
 EMOTION_CATEGORY = "EmotionCategory"
 INTENT_DESC = "IntentDesc"
 REQUEST_CONTENT = "RequestContent"
-ADDITIONAL_MESSAGE = "AdditionalMessage"
+ADDITIONAL_MESSAGE = "AddtionalMessage"
 
 
 #INPUT/OUTPUT
 OUTPUT_SUFFIX = ".analysis.xlsx"
-FOR_LABEL_SUFFIX = "for_label.xlsx"
+FOR_LABEL_SUFFIX = "_for_label.xlsx"
+LABEL_DATA_SOURCE_SUFFIX = ".label_data_source.xlsx"
+SAMPLE_SUFFIX = '.sample.xlsx'
+CAT_NOT_IN_DATA_SUFFIX = '.lackcat.xlsx'
+
+#sheet name
+LACK_CAT_SHEET="lack_sample_cat"
 
 
 class DataProcess:
@@ -66,16 +72,72 @@ class DataProcess:
         return diff
 
 
+    @staticmethod
+    def get_diff_cat_from_file(sample_file_path, cat_dim_file_path, sheet_name_of_dim_file=None, out_file=None):
+        log_data = DataProcess.get_sample_from_sample_file(sample_file_path)
+        cat_dim = load_data2df(cat_dim_file_path, sheet_name=sheet_name_of_dim_file)
+        out_file = get_file_path_without_suffix(log_data_sample_file) + CAT_NOT_IN_DATA_SUFFIX
+        DataProcess.get_diff_cat(log_data, cat_dim, out_file)
+
+
+    @staticmethod
+    def get_diff_cat(data_source, cat_dim, out_file):
+        # 样本数大于十
+        data_cat = data_source[INTENT_DESC].value_counts().reset_index(name="count")
+        data_cat.rename(columns={'index': 'IntentDesc'}, inplace=True)
+        data_cat = data_cat[data_cat["count"] > 10]
+        test_cat = data_cat[INTENT_DESC]
+        cat_not_in_dim = pd.Series(list(set(test_cat).difference(set(cat_dim[INTENT_DESC]))))
+        cat_not_in_data = pd.Series(list(set(cat_dim[INTENT_DESC]).difference(set(test_cat))))
+        if cat_not_in_dim.count() > 0:
+            print(f'Warning:!!!some cat not in dim {cat_not_in_dim.to_string()}')
+
+        if cat_not_in_data.count() == 0:
+            print(f'Message: every cat has data')
+            return None
+        else:
+            print(f'Warning: {cat_not_in_data.count()} cats no data!!!')
+            cat_not_in_data = cat_not_in_data.to_frame()
+            cat_not_in_data.columns = [INTENT_DESC]
+            print(cat_not_in_data.to_string())
+            with pd.ExcelWriter(out_file) as writer:
+                cat_not_in_data.to_excel(writer, index=False)
+            return cat_not_in_data
+
+
 
     @staticmethod
     def get_sample_from_label_file(label_file):
         '''
-        将标注数据转为样本数据
+        从标注了正误的标注集中读取数据：
         '''
         label_data = load_data2df(label_file)
-        true_data = label_data[label_data['Label'] == 1]
+        true_data = label_data
+        # 如果标注集中没有label字段默认都是true data
+        if "Label" in label_data.columns:
+            true_data = label_data[label_data['Label'] == 1]
         sample_data = true_data.apply(DataProcess.parse_row, axis=1)
         return sample_data
+
+    @staticmethod
+    def get_sample_from_log_file(log_file):
+        '''
+        读入原始日志数据,输出采样数据需要人工标注
+        '''
+        log_data = load_data2df(log_file)
+        # ResquestContent AddtionalMessage and mix emotion and intention cat
+        sample_data = log_data.apply(DataProcess.parse_row, axis=1)
+        return sample_data
+
+    @staticmethod
+    def get_sample_from_sample_file(sample_file):
+        '''
+        读入直接打标类别的数据集
+        '''
+        sample_data = load_data2df(sample_file)
+        return sample_data
+
+
 
 
     @staticmethod
@@ -95,13 +157,22 @@ class DataProcess:
         融合emotion和intention
         '''
         request_content = row[REQUEST_CONTENT]
-        json_row = json.loads(row[ADDITIONAL_MESSAGE])
         # 合并emotion与intention数据
         intent_desc = "none"
-        if INTENT_DESC in json_row:
-            intent_desc = json_row[INTENT_DESC]
-        elif EMOTION_CATEGORY in json_row:
-            intent_desc = json_row[EMOTION_CATEGORY]
+        if ADDITIONAL_MESSAGE in row:
+            #读取原始日志数据
+            try:
+                json_row = json.loads(row[ADDITIONAL_MESSAGE])
+                if INTENT_DESC in json_row:
+                    intent_desc = json_row[INTENT_DESC]
+                elif EMOTION_CATEGORY in json_row:
+                    intent_desc = json_row[EMOTION_CATEGORY]
+            except Exception:
+                print(f'bad line: {row}')
+                return
+        elif INTENT_DESC in row:
+            # 读取标注好类别的数据
+            intent_desc = row[INTENT_DESC]
         return pd.Series({REQUEST_CONTENT: request_content, INTENT_DESC: intent_desc})
 
     @staticmethod
@@ -128,6 +199,7 @@ def test_data_describe(test_label_data, emotion_intention_map_file=None, intenti
     cat_dim = load_data2df(intention_134_cat_dim)
     # 校验数据是否有问题
     cat_not_in_test = DataProcess.get_diff_series(cat_dim[INTENT_DESC], test_cat)
+    # TODO: rename cat column to IntentDesc
     cat_not_in_dim = DataProcess.get_diff_series(test_cat, cat_dim[INTENT_DESC])
     cat_not_in_test.to_csv('cat_not_int_test.csv', index=False)
     print(f'cat not in test:!!! Please add same sample to test data\n{cat_not_in_test.to_string()}')
@@ -146,7 +218,6 @@ def test_data_describe(test_label_data, emotion_intention_map_file=None, intenti
     writer.save()
 
 
-
     #找出小于10个和没有出现的类别
 
 
@@ -155,22 +226,89 @@ def test_data_describe(test_label_data, emotion_intention_map_file=None, intenti
     pass
 
 
-def sample_data_from_log(log_file_path, max_per_cat):
+def sample_data_from_log(log_file_path, max_per_cat, cat_dim_file, sheet_name_of_dim_file=0, out_file_path=None):
+    '''
+    从原始日志中采样需要标注的类别样本
+    '''
     # 加载log数据
+    log_data = DataProcess.get_sample_from_log_file(log_file_path)
+    # 加载dim表
+    cat_dim = load_data2df(cat_dim_file, sheet_name=sheet_name_of_dim_file)
+
+    # 过滤出cat_dim中的样本
+    # log_data = log_data[~log_data[INTENT_DESC].isin(cat_dim[INTENT_DESC])]
+    log_data = log_data[log_data[INTENT_DESC].isin(cat_dim[INTENT_DESC])]
+
+    # 分组采样，取head n
+    sample_data = log_data.groupby([INTENT_DESC]).head(max_per_cat)
+
+    # 保存数据
+    log_data_sample_file = out_file_path
+    if not log_data_sample_file:
+        log_data_sample_file = get_file_path_without_suffix(log_file_path) + SAMPLE_SUFFIX
+    with pd.ExcelWriter(log_data_sample_file) as writer:
+        sample_data.to_excel(writer, sheet_name=f'sample_log_for_annotation_max_{max_per_cat}', index=False)
 
 
-    # 按照样本类别随机采样，
-    pass
+
+def merge_label_source_data(label_data_file_list, cat_dim_file, cat_sheet_name=None):
+    '''
+    加载标注数据集，找出其中的缺失类别数据
+    return label_data, lack_cat_dim
+    '''
+    # 加载标注数据
+    label_data_list = []
+    for label_data_file in label_data_file_list:
+        label_data_list.append(DataProcess.get_sample_from_label_file(label_data_file))
+    label_data = pd.concat(label_data_list)
+    cat_dim = load_data2df(cat_dim_file, sheet_name=cat_sheet_name)
+    label_data = label_data[label_data[INTENT_DESC].isin(cat_dim[INTENT_DESC])]
+
+    # 保存数据
+    label_data_source_file = get_file_path_without_suffix(label_data_file_list[0]) + LABEL_DATA_SOURCE_SUFFIX
+    with pd.ExcelWriter(label_data_source_file) as writer:
+        label_data.to_excel(writer, index=False)
+
+    # 输出缺失数据类别
+    lack_cat_dim_file = get_file_path_without_suffix(label_data_source_file) + CAT_NOT_IN_DATA_SUFFIX
+    DataProcess.get_diff_cat(label_data, cat_dim, lack_cat_dim_file)
+
+
+
+
+
+
+
 
 
 if __name__ == '__main__':
-    data_dir = "C:\\Users\\User\\Documents\\project\\intention\\data\\test\\"
+
+    # Task1 加载已有数据源,输出 label_data_source 及 缺失cat dim
+    # data_dir = "C:\\Users\\User\\Documents\\project\\intention\\data\\test\\"
+    data_dir = "D:\\project\\intention\\test\\"
+    label_data_list = [
+        data_dir + "正向情绪index标签分类.xlsx",
+        data_dir + "intention_test_labeled_data.xlsx"
+    ]
+    cat_dim_online = data_dir + "intention_134_cat_dim_online.csv"
+    # merge_label_source_data(label_data_list, cat_dim_online)
+
+    # TASK2: 从无标日志中采样待标注样本, output: 待标注数据
+    log_data_dir = data_dir
+    # log_file_path = log_data_dir + "intention_emotion_last7day_1.csv"
+    log_file_path = log_data_dir + "intention_emotion_last7day_all.csv"
+    max_per_cat = 15
+    cat_dim_file = data_dir + "正向情绪index标签分类.label_data_source.lackcat.xlsx"
+    # file_for_annotation = data_dir + 'not_in_dim_sample.xlsx'
+    sample_data_from_log(log_file_path, max_per_cat, cat_dim_file=cat_dim_file)
+
     # label_file = data_dir + "IntentionDetection_汇总.xlsx"
     # cat_info_file = data_dir + "queryintention.response.leilei.txt"
     # # DataProcess.trans_label2sample(label_file, label_file+".sample.xlsx", 1500)
     # DataProcess.cat_diff(cat_info_file, label_file)
 
 
+    '''
     # TASK1:  统计分析测评文件中类别分布、五样本类别、误样本类别、完成emotion和intention类别映射
     test_data_dir = data_dir
     test_label_data = test_data_dir + "intention_test_labeled_data.xlsx"
@@ -178,21 +316,19 @@ if __name__ == '__main__':
     intention_cat_dim_file = test_data_dir + "intention_134_cat_dim_online.txt"
     test_data_describe(test_label_data, emotion_intention_map_file, intention_cat_dim_file)
 
-
     # TASK2: 从无标日志中采样标注样本
     log_data_dir = data_dir
-    log_file_path = log_data_dir + "intention_emotion_last30day.csv"
-    max_per_cat = "10"
-    sample_data_from_log(log_file_path, max_per_cat)
+    log_file_path = log_data_dir + "intention_emotion_last7day_1.csv"
+    # log_file_path = log_data_dir + "intention_emotion_last7day_all.csv"
+    max_per_cat = 15
+    cat_dim_file = data_dir + "intention_test_labeled_data.xlsx.analysis.xlsx"
+    out_file_path = 'not_in_dim_sample.xlsx'
+    sample_data_from_log(log_file_path, max_per_cat, cat_dim_file=cat_dim_file, sheet_name_of_dim_file=LACK_CAT_SHEET, out_file_path=out_file_path)
 
-
-
-
-
-
-
-
-
+    log_data_sample_file = get_file_path_without_suffix(log_file_path) + SAMPLE_SUFFIX
+    cat_not_data_file = get_file_path_without_suffix(log_data_sample_file) + CAT_NOT_IN_DATA_SUFFIX
+    DataProcess.get_diff_cat_from_file(log_data_sample_file, cat_dim_file, sheet_name_of_dim_file=LACK_CAT_SHEET, out_file=cat_not_data_file)
+    '''
 
 
 
