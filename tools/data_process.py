@@ -246,9 +246,6 @@ def sample_data_from_log(log_file_path, max_per_cat, cat_dim_file, sheet_name_of
     # log_data = log_data[~log_data[INTENT_DESC].isin(cat_dim[INTENT_DESC])]
     log_data = log_data[log_data[INTENT_DESC].isin(cat_dim[INTENT_DESC])]
 
-    # 去重
-    log_data = log_data.drop_duplicates()
-
     # 分组采样，取head n
     sample_data = log_data.groupby([INTENT_DESC]).head(max_per_cat)
 
@@ -259,6 +256,29 @@ def sample_data_from_log(log_file_path, max_per_cat, cat_dim_file, sheet_name_of
     with pd.ExcelWriter(log_data_sample_file) as writer:
         sample_data.to_excel(writer, sheet_name=f'sample_log_for_annotation_max_{max_per_cat}', index=False)
 
+
+
+def merge_label_source_data(label_data_file_list, cat_dim_file, cat_sheet_name=None):
+    '''
+    加载标注数据集，找出其中的缺失类别数据
+    return label_data, lack_cat_dim
+    '''
+    # 加载标注数据
+    label_data_list = []
+    for label_data_file in label_data_file_list:
+        label_data_list.append(DataProcess.get_sample_from_label_file(label_data_file))
+    label_data = pd.concat(label_data_list)
+    cat_dim = load_data2df(cat_dim_file, sheet_name=cat_sheet_name)
+    label_data = label_data[label_data[INTENT_DESC].isin(cat_dim[INTENT_DESC])]
+
+    # 保存数据
+    label_data_source_file = get_file_path_without_suffix(label_data_file_list[0]) + LABEL_DATA_SOURCE_SUFFIX
+    with pd.ExcelWriter(label_data_source_file) as writer:
+        label_data.to_excel(writer, index=False)
+
+    # 输出缺失数据类别
+    lack_cat_dim_file = get_file_path_without_suffix(label_data_source_file) + CAT_NOT_IN_DATA_SUFFIX
+    DataProcess.get_diff_cat(label_data, cat_dim, lack_cat_dim_file)
 
 def merge_pos_label_source_data(label_data_file_list, cat_dim_file, cat_sheet_name=None):
     '''
@@ -392,8 +412,6 @@ if __name__ == '__main__':
     # cat_info_file = data_dir + "queryintention.response.leilei.txt"
     # # DataProcess.trans_label2sample(label_file, label_file+".sample.xlsx", 1500)
     # DataProcess.cat_diff(cat_info_file, label_file)
-
-
 
 
     '''
