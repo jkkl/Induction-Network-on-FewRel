@@ -11,6 +11,20 @@ import pandas as pd
 '''
 
 
+def convert_cat_desc(cat_desc_list, cat_map_dim_file, is_map_reverse=False, ):
+    '''
+    将cat_list 转为 cat_map
+    '''
+    cat_dim = load_data2df(cat_map_dim_file)
+    if is_map_reverse:
+        # 转换map映射关系
+        cols = list(cat_dim)
+        cols.insert(0, cols.pop(1))
+    cat_dim_dict = cat_dim.set_index(cols[0])[cols[1]].to_dict()
+    cat_desc_convert = cat_desc_list.replace(cat_dim_dict)
+    return cat_desc_convert
+
+
 def load_data2df(input_file, sheet_name=0, seq='\t'):
     '''
     使用pandas加载数据

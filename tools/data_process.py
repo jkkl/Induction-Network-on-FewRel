@@ -280,7 +280,8 @@ def merge_label_source_data(label_data_file_list, cat_dim_file, cat_sheet_name=N
     lack_cat_dim_file = get_file_path_without_suffix(label_data_source_file) + CAT_NOT_IN_DATA_SUFFIX
     DataProcess.get_diff_cat(label_data, cat_dim, lack_cat_dim_file)
 
-def merge_pos_label_source_data(label_data_file_list, cat_dim_file, cat_sheet_name=None):
+
+def merge_pos_label_source_data(label_data_file_list, cat_dim_file, cat_sheet_name=None, min_count=10):
     '''
     加载标注数据集，找出其中的缺失类别数据
     return label_data, lack_cat_dim
@@ -301,7 +302,9 @@ def merge_pos_label_source_data(label_data_file_list, cat_dim_file, cat_sheet_na
 
     # 输出缺失数据类别
     lack_cat_dim_file = get_file_path_without_suffix(label_data_source_file) + CAT_NOT_IN_DATA_SUFFIX
-    DataProcess.get_diff_cat(label_data, cat_dim, lack_cat_dim_file)
+    cat_not_in_data = DataProcess.get_diff_cat(label_data, cat_dim, lack_cat_dim_file, min_count=min_count)
+
+    return cat_not_in_data
 
 
 
@@ -367,8 +370,31 @@ def get_test_sample_from_label_source(label_source_file_list, emotion_dim_map_fi
 
 
 if __name__ == '__main__':
+    '''
+        # Task0 加载训练数据源,输出缺失cat dim, 将cat转为线上已有的cat，用于拉取数据，进行标注
+    '''
+    # data_dir = "C:\\Users\\User\\Documents\\project\\intention\\data\\test\\"
+    data_dir = "D:\\project\\intention\\test\\"
+    label_data_list = [
+        data_dir + "General_Intention_134_v1.xlsx"
+    ]
+    dim_dir = data_dir + 'dim\\'
+    cat_dim_online = dim_dir + "intention_134_cat_dim_new.csv"
+    cat_need_label = merge_pos_label_source_data(label_data_list, cat_dim_online, min_count=100)
 
+    emotion_dim_file = dim_dir + 'intent43_intent134.xlsx'
+    intention_dim_file = dim_dir + 'intent96_intent134.xlsx'
+    intention_old_new_dim_map_file = dim_dir + 'intention_old_new_dim_map.xlsx'
+    cat_need_label_online = convert_cat_desc(cat_need_label, intention_old_new_dim_map_file, is_map_reverse=True)
+    print(cat_need_label.to_string())
+    cat_need_label_online_out_file = get_file_path_without_suffix(label_data_list[0]) + CAT_NOT_IN_DATA_SUFFIX
+    with pd.ExcelWriter(cat_need_label_online_out_file) as writer:
+        cat_need_label_online.to_excel(writer, index=False)
+    # merge_neg_label_source_data(label_data_list, cat_dim_online)
+
+    '''
     # Task1 加载已有数据源,输出 label_data_source 及 缺失cat dim
+    '''
     # data_dir = "C:\\Users\\User\\Documents\\project\\intention\\data\\test\\"
     data_dir = "D:\\project\\intention\\test\\"
     label_data_list = [
@@ -386,7 +412,9 @@ if __name__ == '__main__':
     # merge_pos_label_source_data(label_data_list, cat_dim_online)
     # merge_neg_label_source_data(label_data_list, cat_dim_online)
 
+    '''
     # TASK2: 从无标日志中采样待标注样本, output: 待标注数据
+    '''
     log_data_dir = data_dir
     # log_file_path = log_data_dir + "intention_emotion_last7day_1.csv"
     log_file_path = log_data_dir + "intention_neg_1106-1113.csv"
@@ -405,7 +433,8 @@ if __name__ == '__main__':
     dim_dir = data_dir + 'dim\\'
     emotion_dim_file = dim_dir + 'intent43_intent134.xlsx'
     intention_dim_file = dim_dir + 'intent96_intent134.xlsx'
-    get_test_sample_from_label_source(label_source_file_list, emotion_dim_file, intention_dim_file)
+    # get_test_sample_from_label_source(label_source_file_list, emotion_dim_file, intention_dim_file)
+
 
 
     # label_file = data_dir + "IntentionDetection_汇总.xlsx"
