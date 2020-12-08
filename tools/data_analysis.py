@@ -53,5 +53,5 @@ class DataAnalysis:
 
 
 if __name__ == '__main__':
-    train_file = "C:\\Users\\User\\Documents\\project\\intention\\data\\General_Intention_134_v1.xlsx"
+    train_file = "C:\\Users\\User\\Documents\\project\\intention\\data\\General_Intention_134_v1_new.xlsx"
     da = DataAnalysis(train_file)

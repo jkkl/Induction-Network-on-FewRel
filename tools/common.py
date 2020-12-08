@@ -5,11 +5,21 @@
 Created on: 2020/11/5 20:50
 '''
 import pandas as pd
-
+from tools.constants import *
 '''
 公共工具文件
 '''
 
+
+def format_intention_data_for_bert(intention_label_data, cat_dim_file, output_file=None):
+    cat_dim = load_data2df(cat_dim_file)
+    intention_data = load_data2df(intention_label_data)
+    intention_data[INTENTION].replace(cat_dim, inplace=True)
+    col = [QUERY, INTENTION]
+    intention_data = intention_data.ix[:, col]
+    if not output_file:
+        output_file = get_file_path_without_suffix(intention_label_data) + ".bert_format"
+    intention_data.to_csv(output_file, index=False)
 
 def convert_cat_desc(cat_desc_list, cat_map_dim_file, is_map_reverse=False, ):
     '''
