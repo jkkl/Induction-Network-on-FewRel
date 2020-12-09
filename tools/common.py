@@ -12,14 +12,18 @@ from tools.constants import *
 
 
 def format_intention_data_for_bert(intention_label_data, cat_dim_file, output_file=None):
+    '''
+    将原Pipeline训练数据转为Bert训练数据
+    '''
     cat_dim = load_data2df(cat_dim_file)
+    cat_dim_dict = cat_dim.set_index(INTENT_DESC)[INTENT_ID].to_dict()
     intention_data = load_data2df(intention_label_data)
-    intention_data[INTENTION].replace(cat_dim, inplace=True)
+    intention_data[INTENTION].replace(cat_dim_dict, inplace=True)
     col = [QUERY, INTENTION]
-    intention_data = intention_data.ix[:, col]
+    intention_data = intention_data.loc[:, col]
     if not output_file:
         output_file = get_file_path_without_suffix(intention_label_data) + ".bert_format"
-    intention_data.to_csv(output_file, index=False)
+    intention_data.to_csv(output_file, sep='\t', index=False, header=False)
 
 def convert_cat_desc(cat_desc_list, cat_map_dim_file, is_map_reverse=False, ):
     '''
@@ -45,6 +49,8 @@ def load_data2df(input_file, sheet_name=0, seq='\t'):
             input_pd = pd.read_excel(input_file, sheet_name=sheet_name)
         elif "csv" == suffix:
             input_pd = pd.read_csv(input_file)
+        elif 'txt' == suffix:
+            input_pd = pd.read_table(input_file, seq)
     except Exception:
         input_pd = pd.read_table(input_file, seq)
 
@@ -76,3 +82,12 @@ def get_file_suffix_from_path(file_path):
 def get_file_path_without_suffix(file_path):
     file_path = file_path[:file_path.rfind(".")]
     return file_path
+
+
+if __name__ == '__main__':
+    data_dir = 'D:\\project\\intention\\data\\'
+    pipeline_train_file_path = data_dir + "General_Intention_135_V1_For_Bert.xlsx"
+    pipeline_test_file_path = data_dir + "test_bert.xlsx"
+    dim_file = 'D:\\project\\intention\\test\\dim\\queryintention.response.intention-135-v1.txt'
+
+    format_intention_data_for_bert(pipeline_test_file_path, dim_file)

@@ -490,7 +490,7 @@ if __name__ == '__main__':
     cat96_dim_online = dim_dir + "intention96_dim.xlsx"
     emotion_dim_file = dim_dir + 'intent43_intent134.xlsx'
     intention96_dim_file = dim_dir + 'intent96_intent134.xlsx'
-    get_test_sample_from_label_source(label_data_list, emotion_dim_file, intention96_dim_file, target_cat_dim_file=cat96_dim_online)
+    # get_test_sample_from_label_source(label_data_list, emotion_dim_file, intention96_dim_file, target_cat_dim_file=cat96_dim_online)
     # merge_neg_label_source_data(label_data_list, cat_dim_online)
 
     '''
